@@ -7,17 +7,10 @@ PDFS_PATH = DATA_PATH / "pdfs"
 SEGMENTATION_PATH = DATA_PATH / "segmentation"
 SUMMARIES_PATH = DATA_PATH / "summaries"
 
-# LLM configuration. Override either via environment variables or by editing
-# the defaults below. The model must be available in your local Ollama install.
 LLM_MODEL = os.environ.get("PDF_SUMMARIZER_MODEL", "gemma4:e2b")
 LLM_HOST = os.environ.get("PDF_SUMMARIZER_OLLAMA_HOST")  # None -> default ollama URL
 LLM_TEMPERATURE = float(os.environ.get("PDF_SUMMARIZER_TEMPERATURE", "0.2"))
 
-# Token-budget configuration. We use a heuristic of CHARS_PER_TOKEN characters
-# per token for estimation -- close enough for English text and free of any
-# tokenizer dependency. CONTEXT_TOKENS should be set to the model's context
-# window; the remaining budget after reserving room for prompt overhead and
-# the model's output is what we can fill with source content per call.
 CHARS_PER_TOKEN = 4
 CONTEXT_TOKENS = int(os.environ.get("PDF_SUMMARIZER_CONTEXT_TOKENS", "8000"))
 PROMPT_OVERHEAD_TOKENS = 400

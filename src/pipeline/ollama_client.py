@@ -5,7 +5,6 @@ from ollama import Client
 
 from configuration import LLM_HOST, LLM_MODEL, LLM_TEMPERATURE
 
-
 _client: Optional[Client] = None
 
 
@@ -22,7 +21,6 @@ def ask_llm(
     temperature: float = LLM_TEMPERATURE,
     max_retries: int = 2,
 ) -> str:
-    """Send a single prompt to the configured Ollama model and return the response text."""
     messages = []
     if system:
         messages.append({"role": "system", "content": system})

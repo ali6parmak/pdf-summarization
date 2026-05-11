@@ -8,7 +8,7 @@ def analyze_documents():
         segmentation_path = SEGMENTATION_PATH / file_path.name.replace(".pdf", ".json")
         if segmentation_path.exists():
             continue
-        
+
         print(f"{BLUE}Analyzing:{RESET} {YELLOW}{file_path.name}{RESET}")
 
         command = [
@@ -26,5 +26,5 @@ def analyze_documents():
     print(f"{GREEN}All documents analyzed{RESET}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     analyze_documents()

@@ -21,13 +21,11 @@ from pipeline.sectionizer import (
 )
 from pipeline.tokens import estimate_tokens
 
-
 REDUCE_SEPARATOR = "\n\n---\n\n"
 MAX_REDUCE_DEPTH = 6
 
 
 def summarize_segments(segments: list[SegmentBox]) -> str:
-    """Top-level entry point: turn a list of SegmentBox into a single summary string."""
     useful_segments = filter_segments(segments)
     if not useful_segments:
         return ""
@@ -65,8 +63,6 @@ def _final_word_target(input_tokens: int) -> str:
 
 
 def _intermediate_word_target(content_tokens: int) -> int:
-    """Roughly 12% compression with sensible floor/ceiling so that recursive
-    reducers actually shrink the input but never collapse below useful size."""
     return max(120, min(400, content_tokens // 8))
 
 
@@ -103,38 +99,26 @@ def _recursive_reduce(summaries: list[str], final_word_target: str, depth: int =
     joined_tokens = estimate_tokens(joined)
 
     if joined_tokens <= MAX_INPUT_TOKENS:
-        print(
-            f"{GREEN}Final reduce of {len(summaries)} partial summaries "
-            f"(~{joined_tokens} tok, depth {depth}){RESET}"
-        )
+        print(f"{GREEN}Final reduce of {len(summaries)} partial summaries " f"(~{joined_tokens} tok, depth {depth}){RESET}")
         return _reduce_final(joined, final_word_target)
 
     if depth >= MAX_REDUCE_DEPTH:
         # Hard safety cap: truncate the joined input to the budget and run
         # the final reducer. In practice each reduce shrinks ~10x, so even
         # very long documents converge in 2-3 levels and we never reach this.
-        print(
-            f"{YELLOW}Reduce depth cap reached ({MAX_REDUCE_DEPTH}), "
-            f"truncating to budget and finalizing.{RESET}"
-        )
+        print(f"{YELLOW}Reduce depth cap reached ({MAX_REDUCE_DEPTH}), " f"truncating to budget and finalizing.{RESET}")
         truncated = joined[: MAX_INPUT_TOKENS * 4]
         return _reduce_final(truncated, final_word_target)
 
     batches = batch_summaries(summaries, MAX_INPUT_TOKENS, REDUCE_SEPARATOR)
-    print(
-        f"{YELLOW}Intermediate reduce: {len(summaries)} summaries "
-        f"-> {len(batches)} batches (depth {depth}){RESET}"
-    )
+    print(f"{YELLOW}Intermediate reduce: {len(summaries)} summaries " f"-> {len(batches)} batches (depth {depth}){RESET}")
 
     next_level: list[str] = []
     for index, batch in enumerate(batches, start=1):
         content = REDUCE_SEPARATOR.join(batch)
         word_target = _intermediate_word_target(estimate_tokens(content))
         prompt = REDUCE_INTERMEDIATE_TEMPLATE.format(content=content, word_target=word_target)
-        print(
-            f"{YELLOW}Reducing batch {index}/{len(batches)} "
-            f"({len(batch)} summaries -> ~{word_target} words){RESET}"
-        )
+        print(f"{YELLOW}Reducing batch {index}/{len(batches)} " f"({len(batch)} summaries -> ~{word_target} words){RESET}")
         next_level.append(ask_llm(prompt, system=SYSTEM_PROMPT))
 
     return _recursive_reduce(next_level, final_word_target, depth + 1)

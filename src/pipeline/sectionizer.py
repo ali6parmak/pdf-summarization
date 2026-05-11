@@ -3,7 +3,6 @@ from pdf_token_type_labels import TokenType
 from domain.SegmentBox import SegmentBox
 from domain.Section import Section
 
-
 SUMMARIZABLE_TYPES = {
     TokenType.TITLE,
     TokenType.SECTION_HEADER,
@@ -15,21 +14,14 @@ BODY_TYPES = {TokenType.TEXT, TokenType.LIST_ITEM}
 
 
 def filter_segments(segments: list[SegmentBox]) -> list[SegmentBox]:
-    """Keep only the segment types that carry summarizable content."""
     return [s for s in segments if s.type in SUMMARIZABLE_TYPES and s.text.strip()]
 
 
 def get_full_text(segments: list[SegmentBox]) -> str:
-    """Join all useful segments into one document string in reading order."""
     return "\n\n".join(s.text.strip() for s in segments if s.text.strip())
 
 
 def build_sections(segments: list[SegmentBox]) -> list[Section]:
-    """Group consecutive Text/list-item segments under their preceding heading.
-
-    The input is assumed to already be in reading order (which is how the
-    upstream segmentation pipeline emits the JSON).
-    """
     sections: list[Section] = []
     heading = ""
     level = 0
@@ -65,10 +57,5 @@ def build_sections(segments: list[SegmentBox]) -> list[Section]:
 
 
 def has_useful_structure(sections: list[Section]) -> bool:
-    """Return True if the section list looks like a real navigable structure.
-
-    A "real" section needs both a heading and some body, and we want at least
-    two of those before we consider section-based summarization worthwhile.
-    """
     real = [s for s in sections if s.heading and s.body]
     return len(real) >= 2

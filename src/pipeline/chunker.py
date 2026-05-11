@@ -3,7 +3,6 @@ from configuration import MAX_INPUT_TOKENS
 from domain.Section import Section
 from pipeline.tokens import estimate_tokens
 
-
 SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 PARAGRAPH_SEPARATOR = "\n\n"
 PARAGRAPH_SEPARATOR_TOKENS = estimate_tokens(PARAGRAPH_SEPARATOR)
@@ -13,33 +12,16 @@ def pack_sections_into_chunks(
     sections: list[Section],
     budget_tokens: int = MAX_INPUT_TOKENS,
 ) -> list[str]:
-    """Greedily pack rendered sections into chunks that fit `budget_tokens`.
-
-    Sections that are themselves larger than the budget are flushed first,
-    then split internally via paragraph- and sentence-based fallbacks.
-    """
     rendered_sections = [s.render() for s in sections if s.render()]
     return _pack_pieces(rendered_sections, budget_tokens)
 
 
 def split_text_into_chunks(text: str, budget_tokens: int = MAX_INPUT_TOKENS) -> list[str]:
-    """Split a long block of text into chunks that fit `budget_tokens`.
-
-    The split prefers paragraph boundaries first, then sentence boundaries,
-    and finally falls back to fixed-size character windows for pathological
-    inputs (e.g. a single token-rich paragraph longer than the budget).
-    """
     paragraphs = [p.strip() for p in text.split(PARAGRAPH_SEPARATOR) if p.strip()]
     return _pack_pieces(paragraphs, budget_tokens)
 
 
 def _pack_pieces(pieces: list[str], budget_tokens: int) -> list[str]:
-    """Pack `pieces` (sections or paragraphs) into chunks of `\\n\\n`-joined text.
-
-    Pieces larger than the budget are decomposed into sentence-level chunks.
-    Separator tokens between pieces are accounted for so chunks never exceed
-    the budget after joining.
-    """
     chunks: list[str] = []
     buffer: list[str] = []
     buffer_tokens = 0
@@ -112,7 +94,6 @@ def batch_summaries(
     budget_tokens: int = MAX_INPUT_TOKENS,
     separator: str = "\n\n---\n\n",
 ) -> list[list[str]]:
-    """Pack a list of summary strings into batches that each fit the budget."""
     separator_tokens = estimate_tokens(separator)
     batches: list[list[str]] = []
     buffer: list[str] = []

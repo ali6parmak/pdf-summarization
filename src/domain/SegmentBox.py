@@ -43,6 +43,7 @@ class SegmentBox(BaseModel):
             "type": self.type.value,
         }
 
+
 if __name__ == "__main__":
     a = TokenType.TEXT
     print(a.value)
