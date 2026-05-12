@@ -88,9 +88,7 @@ def _write_benchmark_markdown(
     completed_with_metrics = [
         r
         for r in rows
-        if r["status"] == "Completed"
-        and isinstance(r["est_tokens"], int)
-        and isinstance(r["time_s"], (int, float))
+        if r["status"] == "Completed" and isinstance(r["est_tokens"], int) and isinstance(r["time_s"], (int, float))
     ]
     lines.extend(
         [
@@ -131,9 +129,7 @@ def _write_benchmark_markdown(
                 "(no variation in est. tokens or in time across completed files)"
             )
         elif len(completed_with_metrics) == 1:
-            lines.append(
-                "- **Pearson r (est. tokens vs. time, completed):** n/a (only one completed file with metrics)"
-            )
+            lines.append("- **Pearson r (est. tokens vs. time, completed):** n/a (only one completed file with metrics)")
 
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

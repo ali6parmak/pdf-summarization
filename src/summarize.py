@@ -19,7 +19,7 @@ def load_segments(json_path: Path) -> list[SegmentBox]:
     return [SegmentBox(**item) for item in raw]
 
 
-def summarize_all(overwrite: bool = False) -> None:
+def summarize(overwrite: bool = False) -> None:
     SUMMARIES_PATH.mkdir(parents=True, exist_ok=True)
     for segmentation_file_path in SEGMENTATION_PATH.glob("*.json"):
         summary_output_path = SUMMARIES_PATH / segmentation_file_path.name.replace(".json", ".txt")
@@ -44,4 +44,4 @@ def summarize_all(overwrite: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    summarize_all()
+    summarize()
