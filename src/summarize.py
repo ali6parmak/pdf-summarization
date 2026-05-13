@@ -1,17 +1,9 @@
 import json
 from pathlib import Path
 
-from configuration import (
-    BLUE,
-    GREEN,
-    RED,
-    RESET,
-    SEGMENTATION_PATH,
-    SUMMARIES_PATH,
-    YELLOW,
-)
+from configuration import BLUE, GREEN, RED, YELLOW, RESET, SEGMENTATION_PATH, SUMMARIES_PATH
 from domain.SegmentBox import SegmentBox
-from pipeline.summarizer import summarize_segments
+from pipeline.strategies import resolve_strategy
 
 
 def load_segments(json_path: Path) -> list[SegmentBox]:
@@ -19,18 +11,21 @@ def load_segments(json_path: Path) -> list[SegmentBox]:
     return [SegmentBox(**item) for item in raw]
 
 
-def summarize(overwrite: bool = False) -> None:
-    SUMMARIES_PATH.mkdir(parents=True, exist_ok=True)
+def summarize(strategy: str = "recursive_reduce", top_percent: float = 50.0, overwrite: bool = False) -> None:
+    summarizer = resolve_strategy(strategy, top_percent=top_percent)
+    output_dir = SUMMARIES_PATH / strategy
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     for segmentation_file_path in SEGMENTATION_PATH.glob("*.json"):
-        summary_output_path = SUMMARIES_PATH / segmentation_file_path.name.replace(".json", ".txt")
+        summary_output_path = output_dir / segmentation_file_path.name.replace(".json", ".txt")
         if summary_output_path.exists() and not overwrite:
             print(f"{YELLOW}Skipping (already summarized):{RESET} {segmentation_file_path.name}")
             continue
 
-        print(f"\n{BLUE}=== Summarizing:{RESET} {segmentation_file_path.name}")
+        print(f"\n{BLUE}=== Summarizing [{strategy}]:{RESET} {segmentation_file_path.name}")
         try:
             segments = load_segments(segmentation_file_path)
-            summary = summarize_segments(segments)
+            summary = summarizer(segments)
         except Exception as e:
             print(f"{RED}Failed to summarize {segmentation_file_path.name}: {e}{RESET}")
             continue
@@ -44,4 +39,4 @@ def summarize(overwrite: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    summarize()
+    summarize(strategy="recursive_reduce", top_percent=50.0, overwrite=False)

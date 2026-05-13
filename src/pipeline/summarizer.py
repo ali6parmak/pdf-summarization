@@ -32,15 +32,15 @@ def summarize_segments(segments: list[SegmentBox]) -> str:
 
     full_text = get_full_text(useful_segments)
     total_tokens = estimate_tokens(full_text)
-    final_word_target = _final_word_target(total_tokens)
+    word_target = final_word_target(total_tokens)
 
     print(f"{BLUE}Useful tokens (estimated):{RESET} {total_tokens}")
     print(f"{BLUE}Per-call input budget:{RESET} {MAX_INPUT_TOKENS}")
-    print(f"{BLUE}Final word target:{RESET} {final_word_target}")
+    print(f"{BLUE}Final word target:{RESET} {word_target}")
 
     if total_tokens <= MAX_INPUT_TOKENS:
         print(f"{BLUE}Strategy:{RESET} single-pass")
-        return _single_pass(full_text, final_word_target)
+        return single_pass(full_text, word_target)
 
     sections = build_sections(useful_segments)
     if has_useful_structure(sections):
@@ -51,10 +51,10 @@ def summarize_segments(segments: list[SegmentBox]) -> str:
         print(f"{BLUE}Strategy:{RESET} text-based map-reduce ({len(chunks)} chunks)")
 
     partial_summaries = _summarize_chunks(chunks)
-    return _recursive_reduce(partial_summaries, final_word_target)
+    return _recursive_reduce(partial_summaries, word_target)
 
 
-def _final_word_target(input_tokens: int) -> str:
+def final_word_target(input_tokens: int) -> str:
     if input_tokens <= 2000:
         return "150-300"
     if input_tokens <= 8000:
@@ -66,7 +66,7 @@ def _intermediate_word_target(content_tokens: int) -> int:
     return max(120, min(400, content_tokens // 8))
 
 
-def _single_pass(content: str, word_target: str) -> str:
+def single_pass(content: str, word_target: str) -> str:
     prompt = SINGLE_PASS_TEMPLATE.format(content=content, word_target=word_target)
     return ask_llm(prompt, system=SYSTEM_PROMPT)
 
@@ -91,7 +91,7 @@ def _summarize_chunks(chunks: list[str]) -> list[str]:
     return summaries
 
 
-def _recursive_reduce(summaries: list[str], final_word_target: str, depth: int = 0) -> str:
+def _recursive_reduce(summaries: list[str], word_target: str, depth: int = 0) -> str:
     if not summaries:
         return ""
 
@@ -100,7 +100,7 @@ def _recursive_reduce(summaries: list[str], final_word_target: str, depth: int =
 
     if joined_tokens <= MAX_INPUT_TOKENS:
         print(f"{GREEN}Final reduce of {len(summaries)} partial summaries " f"(~{joined_tokens} tok, depth {depth}){RESET}")
-        return _reduce_final(joined, final_word_target)
+        return _reduce_final(joined, word_target)
 
     if depth >= MAX_REDUCE_DEPTH:
         # Hard safety cap: truncate the joined input to the budget and run
@@ -108,7 +108,7 @@ def _recursive_reduce(summaries: list[str], final_word_target: str, depth: int =
         # very long documents converge in 2-3 levels and we never reach this.
         print(f"{YELLOW}Reduce depth cap reached ({MAX_REDUCE_DEPTH}), " f"truncating to budget and finalizing.{RESET}")
         truncated = joined[: MAX_INPUT_TOKENS * 4]
-        return _reduce_final(truncated, final_word_target)
+        return _reduce_final(truncated, word_target)
 
     batches = batch_summaries(summaries, MAX_INPUT_TOKENS, REDUCE_SEPARATOR)
     print(f"{YELLOW}Intermediate reduce: {len(summaries)} summaries " f"-> {len(batches)} batches (depth {depth}){RESET}")
@@ -116,12 +116,12 @@ def _recursive_reduce(summaries: list[str], final_word_target: str, depth: int =
     next_level: list[str] = []
     for index, batch in enumerate(batches, start=1):
         content = REDUCE_SEPARATOR.join(batch)
-        word_target = _intermediate_word_target(estimate_tokens(content))
-        prompt = REDUCE_INTERMEDIATE_TEMPLATE.format(content=content, word_target=word_target)
-        print(f"{YELLOW}Reducing batch {index}/{len(batches)} " f"({len(batch)} summaries -> ~{word_target} words){RESET}")
+        batch_target = _intermediate_word_target(estimate_tokens(content))
+        prompt = REDUCE_INTERMEDIATE_TEMPLATE.format(content=content, word_target=batch_target)
+        print(f"{YELLOW}Reducing batch {index}/{len(batches)} " f"({len(batch)} summaries -> ~{batch_target} words){RESET}")
         next_level.append(ask_llm(prompt, system=SYSTEM_PROMPT))
 
-    return _recursive_reduce(next_level, final_word_target, depth + 1)
+    return _recursive_reduce(next_level, word_target, depth + 1)
 
 
 def _reduce_final(content: str, word_target: str) -> str:

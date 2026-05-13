@@ -3,19 +3,12 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from configuration import (
-    BLUE,
-    GREEN,
-    LLM_MODEL,
-    RED,
-    RESET,
-    SEGMENTATION_PATH,
-    SUMMARIES_PATH,
-    YELLOW,
-)
+from configuration import BLUE, GREEN, YELLOW, RED, RESET, LLM_MODEL, SEGMENTATION_PATH, SUMMARIES_PATH
+
 from domain.SegmentBox import SegmentBox
 from pipeline.sectionizer import filter_segments, get_full_text
-from pipeline.summarizer import summarize_segments
+from pipeline.strategies import resolve_strategy
+
 from pipeline.tokens import estimate_tokens
 from summarize import load_segments
 
@@ -49,6 +42,8 @@ def _write_benchmark_markdown(
     rows: list[dict],
     run_t0: float,
     run_t1: float,
+    strategy: str,
+    strategy_details: dict[str, object] | None = None,
 ) -> None:
     lines: list[str] = [
         "# Summarization benchmark",
@@ -56,10 +51,17 @@ def _write_benchmark_markdown(
         f"- **Run finished (UTC):** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}Z",
         f"- **Wall time (full run):** {run_t1 - run_t0:.3f}s",
         f"- **Model:** `{LLM_MODEL}`",
-        "",
-        "| Source file | Segments | Useful segments | Est. input tokens | Time (s) | Status |",
-        "| --- | ---: | ---: | ---: | ---: | --- |",
+        f"- **Strategy:** `{strategy}`",
     ]
+    for key, value in (strategy_details or {}).items():
+        lines.append(f"- **{key}:** `{value}`")
+    lines.extend(
+        [
+            "",
+            "| Source file | Segments | Useful segments | Est. input tokens | Time (s) | Status |",
+            "| --- | ---: | ---: | ---: | ---: | --- |",
+        ]
+    )
     for row in rows:
         seg = row["segments"]
         useg = row["useful_segments"]
@@ -134,13 +136,20 @@ def _write_benchmark_markdown(
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def benchmark(overwrite: bool = False) -> None:
-    SUMMARIES_PATH.mkdir(parents=True, exist_ok=True)
+def benchmark(
+    strategy: str = "recursive_reduce",
+    top_percent: float = 50.0,
+    overwrite: bool = False,
+) -> None:
+    summarizer = resolve_strategy(strategy, top_percent=top_percent)
+    output_dir = SUMMARIES_PATH / strategy
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     benchmark_rows: list[dict] = []
     run_t0 = time.perf_counter()
 
     for segmentation_file_path in sorted(SEGMENTATION_PATH.glob("*.json")):
-        summary_output_path = SUMMARIES_PATH / segmentation_file_path.name.replace(".json", ".txt")
+        summary_output_path = output_dir / segmentation_file_path.name.replace(".json", ".txt")
         if summary_output_path.exists() and not overwrite:
             print(f"{YELLOW}Skipping (already summarized):{RESET} {segmentation_file_path.name}")
             try:
@@ -159,7 +168,7 @@ def benchmark(overwrite: bool = False) -> None:
             )
             continue
 
-        print(f"\n{BLUE}=== Summarizing:{RESET} {segmentation_file_path.name}")
+        print(f"\n{BLUE}=== Summarizing [{strategy}]:{RESET} {segmentation_file_path.name}")
         t0 = time.perf_counter()
         segments: list[SegmentBox] = []
         segment_count: int | str = "—"
@@ -174,7 +183,7 @@ def benchmark(overwrite: bool = False) -> None:
             full_text = get_full_text(useful)
             est_tokens = estimate_tokens(full_text) if useful else 0
 
-            summary = summarize_segments(segments)
+            summary = summarizer(segments)
             elapsed = time.perf_counter() - t0
 
             if not summary.strip():
@@ -221,10 +230,22 @@ def benchmark(overwrite: bool = False) -> None:
             )
 
     run_t1 = time.perf_counter()
-    benchmark_path = SUMMARIES_PATH / BENCHMARK_FILENAME
-    _write_benchmark_markdown(benchmark_path, benchmark_rows, run_t0, run_t1)
+    benchmark_path = output_dir / BENCHMARK_FILENAME
+
+    strategy_details: dict[str, object] = {}
+    if strategy == "length_sample":
+        strategy_details["top_percent"] = top_percent
+
+    _write_benchmark_markdown(
+        benchmark_path,
+        benchmark_rows,
+        run_t0,
+        run_t1,
+        strategy=strategy,
+        strategy_details=strategy_details or None,
+    )
     print(f"\n{GREEN}Wrote benchmark -> {benchmark_path}{RESET}")
 
 
 if __name__ == "__main__":
-    benchmark()
+    benchmark(strategy="recursive_reduce", top_percent=50.0, overwrite=False)
